@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BimBam.App/BimBam.App.csproj" />
+    <Project Path="src/BimBam.Core/BimBam.Core.csproj" />
+    <Project Path="src/BimBam.Infrastructure/BimBam.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BimBam.Core.Tests/BimBam.Core.Tests.csproj" />
+  </Folder>
+</Solution>

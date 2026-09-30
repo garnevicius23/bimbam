@@ -1,0 +1,14 @@
+﻿<Application x:Class="BimBam.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BimBam.App"
+             xmlns:conv="clr-namespace:BimBam.App.Converters">
+    <Application.Resources>
+        <ResourceDictionary>
+            <conv:LineStatusToTextConverter x:Key="LineStatusToTextConverter"/>
+            <conv:LineStatusToBrushConverter x:Key="LineStatusToBrushConverter"/>
+            <conv:ContainerCodeConverter x:Key="ContainerCodeConverter"/>
+            <conv:BarcodeValueConverter x:Key="BarcodeValueConverter"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,7 @@
+<Project>
+  <!-- Keep Release builds/publishes free of stray .pdb files across every project, so the
+       packaged app folder is just the single self-contained .exe. -->
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+</Project>

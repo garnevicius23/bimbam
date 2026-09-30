@@ -1,0 +1,86 @@
+<Window x:Class="BimBam.App.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BimBam – Nustatymai" Height="640" Width="560"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="16">
+        <StackPanel>
+            <TextBlock Text="Duomenų saugojimas" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" Text="{Binding SessionsFolderPath, UpdateSourceTrigger=PropertyChanged}" Padding="4"/>
+                <Button Grid.Column="1" Content="Naršyti..." Margin="6,0,0,0" Padding="8,4"
+                        Command="{Binding BrowseFolderCommand}"
+                        CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"/>
+            </Grid>
+
+            <TextBlock Text="Etikečių spausdintuvas (Brother QL-800)" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
+            <ComboBox ItemsSource="{Binding AvailablePrinters}" SelectedItem="{Binding LabelPrinterName}" Margin="0,0,0,8" Padding="4"/>
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Text="Plotis (mm)"/>
+                    <TextBox Text="{Binding LabelWidthMm}" Padding="4"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                    <TextBlock Text="Aukštis (mm)"/>
+                    <TextBox Text="{Binding LabelHeightMm}" Padding="4"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Šrifto dydis"/>
+                    <TextBox Text="{Binding PartNumberFontSize}" Padding="4"/>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Text="Ataskaitos spausdintuvas (A4)" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
+            <ComboBox ItemsSource="{Binding AvailablePrinters}" SelectedItem="{Binding ReportPrinterName}" Margin="0,0,0,16" Padding="4"/>
+
+            <TextBlock Text="Skenavimo elgsena" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Pakartotinio skenavimo langas (sekundės):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding RepeatScanWindowSeconds}" Width="60" Padding="4"/>
+            </StackPanel>
+            <CheckBox IsChecked="{Binding RepeatScanBehaviorIsPrint}" Margin="0,0,0,8">
+                <TextBlock Text="Antras tos pačios detalės skenavimas iš karto spausdina etiketę (vietoj kiekio didinimo +1)" TextWrapping="Wrap" MaxWidth="480"/>
+            </CheckBox>
+            <CheckBox Content="Garsiniai signalai įjungti" IsChecked="{Binding SoundsEnabled}" Margin="0,0,0,16"/>
+
+            <TextBlock Text="Brūkšninių kodų prefiksai / veiksmų kodai" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Konteinerio kodo prefiksas:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding ContainerBarcodePrefix}" Width="80" Padding="4"/>
+            </StackPanel>
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Spausdinti:" VerticalAlignment="Center" Margin="0,2"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding PrintCommand}" Margin="8,2,0,2" Padding="3"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Atšaukti:" VerticalAlignment="Center" Margin="0,2"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding UndoCommand}" Margin="8,2,0,2" Padding="3"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Kita detalė:" VerticalAlignment="Center" Margin="0,2"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding NextPartCommand}" Margin="8,2,0,2" Padding="3"/>
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Įvesti kiekį:" VerticalAlignment="Center" Margin="0,2"/>
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding EnterQuantityCommand}" Margin="8,2,0,2" Padding="3"/>
+            </Grid>
+
+            <Button Content="Išsaugoti" Height="36" Width="140" HorizontalAlignment="Right"
+                    Command="{Binding SaveCommand}"
+                    CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"/>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
