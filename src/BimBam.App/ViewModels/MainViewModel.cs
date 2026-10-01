@@ -20,6 +20,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ILabelPrintService _labelPrintService;
     private readonly IReportService _reportService;
     private readonly ISystemClock _clock;
+    private readonly IScanLogger _scanLogger;
 
     public MainViewModel(
         ISessionRepository sessionRepository,
@@ -27,7 +28,8 @@ public sealed partial class MainViewModel : ObservableObject
         ISettingsService settingsService,
         ILabelPrintService labelPrintService,
         IReportService reportService,
-        ISystemClock clock)
+        ISystemClock clock,
+        IScanLogger scanLogger)
     {
         _sessionRepository = sessionRepository;
         _excelImportService = excelImportService;
@@ -35,6 +37,7 @@ public sealed partial class MainViewModel : ObservableObject
         _labelPrintService = labelPrintService;
         _reportService = reportService;
         _clock = clock;
+        _scanLogger = scanLogger;
     }
 
     public ObservableCollection<OrderSession> Sessions { get; } = [];
@@ -119,6 +122,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OpenWorkspace(OrderSession session)
     {
-        Workspace = new SessionWorkspaceViewModel(session, _settingsService, _sessionRepository, _excelImportService, _labelPrintService, _reportService, _clock);
+        Workspace = new SessionWorkspaceViewModel(session, _settingsService, _sessionRepository, _excelImportService, _labelPrintService, _reportService, _clock, _scanLogger);
     }
 }

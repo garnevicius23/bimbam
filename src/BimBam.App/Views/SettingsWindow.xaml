@@ -39,6 +39,10 @@
                 </StackPanel>
             </Grid>
 
+            <CheckBox IsChecked="{Binding LabelLandscapeOrientation}" Margin="0,0,0,16">
+                <TextBlock Text="Spausdinti etiketes gulsčiai (Landscape) – pažymėkite, jei etiketė spausdinama pasukta arba netelpa ant lipduko" TextWrapping="Wrap" MaxWidth="480"/>
+            </CheckBox>
+
             <TextBlock Text="Ataskaitos spausdintuvas (A4)" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
             <ComboBox ItemsSource="{Binding AvailablePrinters}" SelectedItem="{Binding ReportPrinterName}" Margin="0,0,0,16" Padding="4"/>
 

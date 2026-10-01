@@ -14,9 +14,8 @@
     <AssemblyName>BimBam</AssemblyName>
     <ApplicationTitle>BimBam</ApplicationTitle>
 
-    <!-- Plug-and-play packaging: one self-contained .exe, no .NET install or setup needed. -->
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <SelfContained>true</SelfContained>
+    <!-- Plug-and-play packaging (publish-only; does not affect normal build/debug output).
+         Build with: dotnet publish -c Release -r win-x64 /p:SelfContained=true -o publish -->
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>

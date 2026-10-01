@@ -7,21 +7,25 @@ namespace BimBam.Core.Services;
 /// <summary>
 /// Default <see cref="IScanEngine"/> implementation: interprets each scanned barcode as a part,
 /// a container, or one of the configured command barcodes, applying the repeat-scan window and
-/// behavior from <see cref="AppSettings"/>.
+/// behavior from <see cref="AppSettings"/>. Every scan is reported to the optional
+/// <see cref="IScanLogger"/> with what was scanned, what it was recognized as, and what actually
+/// happened.
 /// </summary>
 public sealed class ScanEngine : IScanEngine
 {
     private readonly OrderSession _session;
     private readonly AppSettings _settings;
     private readonly ISystemClock _clock;
+    private readonly IScanLogger? _logger;
 
     private DateTimeOffset? _activeLineLastScanAt;
 
-    public ScanEngine(OrderSession session, AppSettings settings, ISystemClock clock)
+    public ScanEngine(OrderSession session, AppSettings settings, ISystemClock clock, IScanLogger? logger = null)
     {
         _session = session;
         _settings = settings;
         _clock = clock;
+        _logger = logger;
     }
 
     public OrderLine? ActiveLine { get; private set; }
@@ -43,6 +47,38 @@ public sealed class ScanEngine : IScanEngine
     public ScanResult ProcessScan(string rawBarcode)
     {
         var trimmed = rawBarcode.Trim();
+        var trigger = DescribeTrigger(trimmed);
+        var result = ProcessScanCore(rawBarcode, trimmed);
+        LogResult(rawBarcode, trigger, result);
+        return result;
+    }
+
+    public ScanResult SetQuantity(int quantity)
+    {
+        if (ActiveLine is null)
+        {
+            var failure = new ScanResult { EventType = ScanEventType.UnknownBarcodeScanned, IsError = true, Message = "Nėra pasirinktos detalės." };
+            LogResult($"(rankinis kiekis: {quantity})", "rankinis kiekio įvedimas", failure);
+            return failure;
+        }
+
+        ActiveLine.ActualQuantity = quantity;
+        UpdateStatus(ActiveLine);
+        _activeLineLastScanAt = _clock.UtcNow;
+
+        var result = new ScanResult { EventType = ScanEventType.QuantitySetManually, Line = ActiveLine };
+        LogResult($"(rankinis kiekis: {quantity})", "rankinis kiekio įvedimas", result);
+        return result;
+    }
+
+    public void ClearActiveLine()
+    {
+        ActiveLine = null;
+        _activeLineLastScanAt = null;
+    }
+
+    private ScanResult ProcessScanCore(string rawBarcode, string trimmed)
+    {
         if (trimmed.Length == 0)
         {
             return ScanResult.UnknownBarcode(rawBarcode);
@@ -71,26 +107,6 @@ public sealed class ScanEngine : IScanEngine
         }
 
         return ScanPart(trimmed);
-    }
-
-    public ScanResult SetQuantity(int quantity)
-    {
-        if (ActiveLine is null)
-        {
-            return new ScanResult { EventType = ScanEventType.UnknownBarcodeScanned, IsError = true, Message = "Nėra pasirinktos detalės." };
-        }
-
-        ActiveLine.ActualQuantity = quantity;
-        UpdateStatus(ActiveLine);
-        _activeLineLastScanAt = _clock.UtcNow;
-
-        return new ScanResult { EventType = ScanEventType.QuantitySetManually, Line = ActiveLine };
-    }
-
-    public void ClearActiveLine()
-    {
-        ActiveLine = null;
-        _activeLineLastScanAt = null;
     }
 
     private ScanResult ScanPart(string barcode)
@@ -191,5 +207,67 @@ public sealed class ScanEngine : IScanEngine
             var q when q < line.ExpectedQuantity => LineStatus.Shortage,
             _ => LineStatus.Surplus
         };
+    }
+
+    private string DescribeTrigger(string trimmed)
+    {
+        if (trimmed.Length == 0)
+        {
+            return "tuščias kodas";
+        }
+
+        var commands = _settings.CommandBarcodes;
+        if (trimmed.Equals(commands.Print, StringComparison.OrdinalIgnoreCase))
+        {
+            return "veiksmo kodas SPAUSDINTI";
+        }
+
+        if (trimmed.Equals(commands.Undo, StringComparison.OrdinalIgnoreCase))
+        {
+            return "veiksmo kodas ATŠAUKTI";
+        }
+
+        if (trimmed.Equals(commands.NextPart, StringComparison.OrdinalIgnoreCase))
+        {
+            return "veiksmo kodas KITA DETALĖ";
+        }
+
+        if (trimmed.Equals(commands.EnterQuantity, StringComparison.OrdinalIgnoreCase))
+        {
+            return "veiksmo kodas ĮVESTI KIEKĮ";
+        }
+
+        if (trimmed.StartsWith(_settings.ContainerBarcodePrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return "konteinerio kodas";
+        }
+
+        return "detalės kodas (PARTNR)";
+    }
+
+    private static string DescribeOutcome(ScanResult result) => result.EventType switch
+    {
+        ScanEventType.PartScanned => "detalė pasirinkta",
+        ScanEventType.QuantityIncremented => "kiekis padidintas (+1)",
+        ScanEventType.QuantitySetManually => "kiekis nustatytas",
+        ScanEventType.LabelPrinted => "spausdinama etiketė",
+        ScanEventType.AssignedToContainer => "priskirta konteineriui",
+        ScanEventType.ActionUndone => "veiksmas atšauktas / pereita prie kitos detalės",
+        ScanEventType.UnknownBarcodeScanned => $"KLAIDA ({result.Message})",
+        _ => result.Message ?? "-"
+    };
+
+    private void LogResult(string rawInput, string trigger, ScanResult result)
+    {
+        if (_logger is null)
+        {
+            return;
+        }
+
+        var partNumber = result.Line?.PartNumber ?? "-";
+        var containerCode = result.Container?.Code;
+        var containerSuffix = containerCode is null ? string.Empty : $" | Konteineris: {containerCode}";
+
+        _logger.Log($"Skenuota: \"{rawInput}\" | Atpažinta kaip: {trigger} | Rezultatas: {DescribeOutcome(result)} | Detalės kodas: {partNumber}{containerSuffix}");
     }
 }

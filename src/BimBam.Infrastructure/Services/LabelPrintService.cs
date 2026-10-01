@@ -21,7 +21,7 @@ public sealed class LabelPrintService : ILabelPrintService
     public Task PrintPartLabelAsync(OrderLine line, LabelSettings settings, CancellationToken ct = default)
     {
         var visual = BuildLabelVisual(line.PartNumber, $"{line.PartNumber}  ({line.GeeversNumber})", settings);
-        Print(visual, settings.LabelWidthMm, settings.LabelHeightMm, settings.PrinterName, $"BimBam etiketė {line.PartNumber}");
+        Print(visual, settings, $"BimBam etiketė {line.PartNumber}");
         return Task.CompletedTask;
     }
 
@@ -29,7 +29,7 @@ public sealed class LabelPrintService : ILabelPrintService
     {
         var caption = string.IsNullOrWhiteSpace(container.DisplayName) ? container.Code : $"{container.Code} – {container.DisplayName}";
         var visual = BuildLabelVisual(container.Code, caption, settings);
-        Print(visual, settings.LabelWidthMm, settings.LabelHeightMm, settings.PrinterName, $"BimBam konteineris {container.Code}");
+        Print(visual, settings, $"BimBam konteineris {container.Code}");
         return Task.CompletedTask;
     }
 
@@ -131,15 +131,28 @@ public sealed class LabelPrintService : ILabelPrintService
         return panel;
     }
 
-    private static void Print(Visual visual, double widthMm, double heightMm, string? printerName, string description)
+    private static void Print(Visual visual, LabelSettings settings, string description)
     {
         var dialog = new PrintDialog();
-        if (!TrySetPrintQueue(dialog, printerName))
+        if (!TrySetPrintQueue(dialog, settings.PrinterName))
         {
             return;
         }
 
-        dialog.PrintTicket.PageMediaSize = new System.Printing.PageMediaSize(widthMm * MmToDip, heightMm * MmToDip);
+        var widthDip = settings.LabelWidthMm * MmToDip;
+        var heightDip = settings.LabelHeightMm * MmToDip;
+
+        // Continuous-roll label drivers commonly model the media with the feed direction and
+        // tape width swapped relative to how the label is laid out on screen; rotating the print
+        // job (landscape) compensates so the printed label matches the on-screen design instead
+        // of coming out sideways or clipped. See LabelSettings.LandscapeOrientation.
+        dialog.PrintTicket.PageOrientation = settings.LandscapeOrientation
+            ? System.Printing.PageOrientation.Landscape
+            : System.Printing.PageOrientation.Portrait;
+        dialog.PrintTicket.PageMediaSize = settings.LandscapeOrientation
+            ? new System.Printing.PageMediaSize(heightDip, widthDip)
+            : new System.Printing.PageMediaSize(widthDip, heightDip);
+
         dialog.PrintVisual(visual, description);
     }
 

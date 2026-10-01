@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using BimBam.App.ViewModels;
 
@@ -65,18 +66,48 @@ public partial class MainWindow : Window
 
     private void RefocusScanInputIfIdle()
     {
+        // Don't steal keyboard focus from any other window (settings, container contents,
+        // print dialogs, etc.) — only ever refocus the scan box while this window is the active one.
+        if (!IsActive)
+        {
+            return;
+        }
+
         if (Keyboard.FocusedElement is TextBox { Name: "ScanInput" })
         {
             return;
         }
 
-        // Only steal focus back when nothing else clearly wants it (e.g. no dialog is open and
-        // the user isn't typing into another text field), so the scanner keeps working hands-free.
+        // Only steal focus back when nothing else clearly wants it (e.g. the user isn't typing
+        // into another text field), so the scanner keeps working hands-free.
         if (Keyboard.FocusedElement is TextBox)
         {
             return;
         }
 
+        // Let the user select and copy cells in the order grid (e.g. Ctrl+C a part number)
+        // without the scan box yanking focus back every second.
+        if (Keyboard.FocusedElement is DependencyObject focused && IsDescendantOf(focused, OrderGrid))
+        {
+            return;
+        }
+
         ScanInput?.Focus();
+    }
+
+    private static bool IsDescendantOf(DependencyObject? element, DependencyObject ancestor)
+    {
+        var current = element;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 }

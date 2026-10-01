@@ -33,7 +33,8 @@ public sealed partial class SessionWorkspaceViewModel : ObservableObject, IDispo
         IExcelOrderImportService excelImportService,
         ILabelPrintService labelPrintService,
         IReportService reportService,
-        ISystemClock clock)
+        ISystemClock clock,
+        IScanLogger scanLogger)
     {
         Session = session;
         _settingsService = settingsService;
@@ -41,7 +42,7 @@ public sealed partial class SessionWorkspaceViewModel : ObservableObject, IDispo
         _excelImportService = excelImportService;
         _labelPrintService = labelPrintService;
         _reportService = reportService;
-        _scanEngine = new ScanEngine(session, settingsService.Current, clock);
+        _scanEngine = new ScanEngine(session, settingsService.Current, clock, scanLogger);
 
         Lines = new ObservableCollection<OrderLine>(session.Lines);
         Containers = new ObservableCollection<Container>(session.Containers);
@@ -197,20 +198,21 @@ public sealed partial class SessionWorkspaceViewModel : ObservableObject, IDispo
         var nextNumber = Containers.Count + 1;
         var suggestedCode = $"{prefix}{nextNumber:000}";
 
-        var code = Views.TextInputWindow.Ask(owner, "Naujo konteinerio kodas:", suggestedCode);
-        if (string.IsNullOrWhiteSpace(code))
+        // A single combined dialog (code + name together) avoids any gap between two sequential
+        // prompts where a stray scanner input could otherwise land on the main scan box.
+        var answer = Views.NewContainerWindow.Ask(owner, suggestedCode);
+        if (answer is not { } result)
         {
             return;
         }
 
-        var displayName = Views.TextInputWindow.Ask(owner, "Konteinerio pavadinimas (neprivaloma):");
-
-        var container = new Container { SessionId = Session.Id, Code = code, DisplayName = displayName };
+        var container = new Container { SessionId = Session.Id, Code = result.Code, DisplayName = result.Name };
         Session.Containers.Add(container);
         Containers.Add(container);
         await _sessionRepository.SaveSessionAsync(Session);
 
-        await _labelPrintService.PrintContainerLabelAsync(container, _settingsService.Current.LabelPrinter);
+        FeedbackIsError = false;
+        FeedbackMessage = $"Konteineris {container.Code} sukurtas. Etiketę spausdinkite rankiniu būdu, kai būsite pasiruošę.";
     }
 
     [RelayCommand]

@@ -114,7 +114,8 @@
                         </Border>
 
                         <DataGrid x:Name="OrderGrid" Grid.Row="3" ItemsSource="{Binding Lines}" AutoGenerateColumns="False" IsReadOnly="True"
-                                  CanUserAddRows="False" GridLinesVisibility="Horizontal">
+                                  CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                                  SelectionUnit="CellOrRowHeader" ClipboardCopyMode="ExcludeHeader">
                             <DataGrid.RowStyle>
                                 <Style TargetType="DataGridRow">
                                     <Setter Property="Background" Value="{Binding Status, Converter={StaticResource LineStatusToBrushConverter}}"/>

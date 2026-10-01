@@ -28,6 +28,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         LabelHeightMm = current.LabelPrinter.LabelHeightMm;
         BarcodeHeightMm = current.LabelPrinter.BarcodeHeightMm;
         PartNumberFontSize = current.LabelPrinter.PartNumberFontSize;
+        LabelLandscapeOrientation = current.LabelPrinter.LandscapeOrientation;
         ReportPrinterName = current.ReportPrinterName;
         RepeatScanWindowSeconds = current.RepeatScanWindowSeconds;
         RepeatScanBehaviorIsPrint = current.RepeatScanBehavior == RepeatScanBehavior.TriggerPrint;
@@ -50,6 +51,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private double labelHeightMm;
     [ObservableProperty] private int barcodeHeightMm;
     [ObservableProperty] private int partNumberFontSize;
+    [ObservableProperty] private bool labelLandscapeOrientation = true;
     [ObservableProperty] private string? reportPrinterName;
     [ObservableProperty] private int repeatScanWindowSeconds;
     [ObservableProperty] private bool repeatScanBehaviorIsPrint;
@@ -87,7 +89,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                 LabelWidthMm = LabelWidthMm,
                 LabelHeightMm = LabelHeightMm,
                 BarcodeHeightMm = BarcodeHeightMm,
-                PartNumberFontSize = PartNumberFontSize
+                PartNumberFontSize = PartNumberFontSize,
+                LandscapeOrientation = LabelLandscapeOrientation
             },
             CommandBarcodes = new CommandBarcodes
             {
