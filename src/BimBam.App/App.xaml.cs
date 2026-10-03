@@ -30,6 +30,7 @@ public partial class App : Application
         base.OnStartup(e);
 
         EnsureConsoleWindow();
+        RegisterCrashGuards();
 
         var services = new ServiceCollection();
         services.AddSingleton<ISystemClock, SystemClock>();
@@ -68,6 +69,29 @@ public partial class App : Application
         }
 
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Last-resort safety net: an unexpected error (typically a network hiccup) is logged and
+    /// reported instead of closing the app mid-scan. Session data is saved after every change,
+    /// so nothing is lost either way.
+    /// </summary>
+    private void RegisterCrashGuards()
+    {
+        DispatcherUnhandledException += (_, args) =>
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] NETIKĖTA KLAIDA: {args.Exception}");
+            MessageBox.Show(
+                $"Įvyko netikėta klaida, bet programa tęsia darbą. Duomenys išsaugoti.\n\n{args.Exception.Message}",
+                "BimBam", MessageBoxButton.OK, MessageBoxImage.Warning);
+            args.Handled = true;
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Foninė klaida: {args.Exception}");
+            args.SetObserved();
+        };
     }
 
     /// <summary>

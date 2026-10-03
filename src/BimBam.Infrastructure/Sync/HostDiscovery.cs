@@ -15,17 +15,26 @@ namespace BimBam.Infrastructure.Sync;
 /// </summary>
 public static class HostDiscovery
 {
-    public static async Task<IReadOnlyList<DiscoveredHost>> DiscoverAsync(TimeSpan timeout, CancellationToken ct = default)
+    public static Task<IReadOnlyList<DiscoveredHost>> DiscoverAsync(TimeSpan timeout, CancellationToken ct = default) =>
+        DiscoverAsync(timeout, BroadcastTargets(), IPAddress.Any, SyncProtocol.DiscoveryPort, ct);
+
+    internal static async Task<IReadOnlyList<DiscoveredHost>> DiscoverAsync(
+        TimeSpan timeout,
+        IEnumerable<IPAddress> targets,
+        IPAddress bindAddress,
+        int discoveryPort,
+        CancellationToken ct)
     {
         using var udp = new UdpClient(AddressFamily.InterNetwork) { EnableBroadcast = true };
-        udp.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+        UdpSocketOptions.IgnoreConnectionResets(udp);
+        udp.Client.Bind(new IPEndPoint(bindAddress, 0));
         var request = Encoding.UTF8.GetBytes(SyncProtocol.DiscoveryRequest);
 
-        foreach (var target in BroadcastTargets())
+        foreach (var target in targets)
         {
             try
             {
-                await udp.SendAsync(request, new IPEndPoint(target, SyncProtocol.DiscoveryPort), ct);
+                await udp.SendAsync(request, new IPEndPoint(target, discoveryPort), ct);
             }
             catch (SocketException)
             {
@@ -40,7 +49,17 @@ public static class HostDiscovery
         {
             while (true)
             {
-                var reply = await udp.ReceiveAsync(timeoutCts.Token);
+                UdpReceiveResult reply;
+                try
+                {
+                    reply = await udp.ReceiveAsync(timeoutCts.Token);
+                }
+                catch (SocketException)
+                {
+                    // Some target had nobody listening; keep waiting for the others.
+                    continue;
+                }
+
                 var announcement = TryParse(reply.Buffer);
                 if (announcement is null || !LocalNetworkAddress.IsAllowed(reply.RemoteEndPoint.Address))
                 {

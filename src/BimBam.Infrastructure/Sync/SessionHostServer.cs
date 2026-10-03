@@ -127,6 +127,7 @@ public sealed class SessionHostServer : IAsyncDisposable
         if (_enableDiscovery)
         {
             _discoveryListener = new UdpClient(new IPEndPoint(IPAddress.Any, SyncProtocol.DiscoveryPort));
+            UdpSocketOptions.IgnoreConnectionResets(_discoveryListener);
             _ = Task.Run(() => AnswerDiscoveryAsync(_discoveryListener, _stopping.Token));
         }
     }

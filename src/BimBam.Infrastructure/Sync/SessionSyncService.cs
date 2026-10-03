@@ -74,8 +74,17 @@ public sealed class SessionSyncService : ISessionSyncService
 
         if (EnableDiscovery)
         {
-            var existing = (await HostDiscovery.DiscoverAsync(TimeSpan.FromSeconds(1.2), ct))
-                .FirstOrDefault(h => h.SessionId == controller.Session.Id);
+            DiscoveredHost? existing = null;
+            try
+            {
+                existing = (await HostDiscovery.DiscoverAsync(TimeSpan.FromSeconds(1.2), ct))
+                    .FirstOrDefault(h => h.SessionId == controller.Session.Id);
+            }
+            catch (Exception ex) when (ex is System.Net.Sockets.SocketException or System.IO.IOException)
+            {
+                // The duplicate-host check is a courtesy; a network hiccup must not stop sharing.
+            }
+
             if (existing is not null)
             {
                 throw new InvalidOperationException($"Ši sesija jau bendrinama kompiuteryje „{existing.HostName}“. Prisijunkite prie jo.");

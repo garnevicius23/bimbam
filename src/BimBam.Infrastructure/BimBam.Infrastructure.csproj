@@ -23,5 +23,8 @@
     <!-- Embedded web server so one laptop can host a session for others on the local network. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="BimBam.Infrastructure.Tests" />
+  </ItemGroup>
 
 </Project>

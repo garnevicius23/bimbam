@@ -352,6 +352,12 @@ public sealed partial class SessionWorkspaceViewModel : ObservableObject, IDispo
             FeedbackIsError = true;
             FeedbackMessage = ex.Message;
         }
+        catch (Exception ex)
+        {
+            _services.ScanLogger.Log($"Bendrinimo klaida: {ex}");
+            FeedbackIsError = true;
+            FeedbackMessage = $"Nepavyko pradėti bendrinti sesijos: {ex.Message}";
+        }
         finally
         {
             IsShareBusy = false;
@@ -365,6 +371,10 @@ public sealed partial class SessionWorkspaceViewModel : ObservableObject, IDispo
         try
         {
             await _services.Sync.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            _services.ScanLogger.Log($"Klaida baigiant bendrinti: {ex}");
         }
         finally
         {

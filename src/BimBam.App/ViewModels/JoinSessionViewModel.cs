@@ -67,6 +67,10 @@ public sealed partial class JoinSessionViewModel : ObservableObject
                 ? "Nerasta. Patikrinkite, ar kitas kompiuteris bendrina sesiją ir ar abu prijungti prie to paties tinklo. Galite įvesti adresą rankiniu būdu."
                 : $"Rasta: {Hosts.Count}.";
         }
+        catch (Exception)
+        {
+            Status = "Nepavyko ieškoti kompiuterių tinkle. Galite įvesti adresą rankiniu būdu.";
+        }
         finally
         {
             IsBusy = false;
