@@ -16,12 +16,17 @@ namespace BimBam.App.ViewModels;
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly ISettingsService _settingsService;
+    private readonly IFirewallSetupService _firewall;
 
-    public SettingsViewModel(ISettingsService settingsService)
+    public SettingsViewModel(ISettingsService settingsService, IFirewallSetupService firewall)
     {
         _settingsService = settingsService;
+        _firewall = firewall;
         var current = settingsService.Current;
 
+        DeviceName = current.DeviceName;
+        DeviceLetter = current.DeviceLetter;
+        RefreshFirewallStatus();
         SessionsFolderPath = current.SessionsFolderPath;
         LabelPrinterName = current.LabelPrinter.PrinterName;
         LabelWidthMm = current.LabelPrinter.LabelWidthMm;
@@ -61,6 +66,26 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string undoCommand = "*ATSAUKTI*";
     [ObservableProperty] private string nextPartCommand = "*KITAS*";
     [ObservableProperty] private string enterQuantityCommand = "*KIEKIS*";
+    [ObservableProperty] private string deviceName = string.Empty;
+    [ObservableProperty] private string deviceLetter = "A";
+    [ObservableProperty] private string firewallStatus = string.Empty;
+
+    [RelayCommand]
+    private async Task ConfigureFirewallAsync()
+    {
+        FirewallStatus = "Laukiama administratoriaus patvirtinimo…";
+        var ok = await _firewall.ConfigureAsync();
+        RefreshFirewallStatus();
+        if (!ok)
+        {
+            FirewallStatus = "Nepavyko (gal atšaukėte administratoriaus užklausą?). " + FirewallStatus;
+        }
+    }
+
+    private void RefreshFirewallStatus() =>
+        FirewallStatus = _firewall.IsConfigured()
+            ? "Atlikta – kiti to paties tinklo kompiuteriai gali prisijungti prie šio."
+            : "Neatlikta – reikalinga, jei šis kompiuteris bendrins sesiją.";
 
     [RelayCommand]
     private void BrowseFolder(Window owner)
@@ -83,6 +108,9 @@ public sealed partial class SettingsViewModel : ObservableObject
             RepeatScanBehavior = RepeatScanBehaviorIsPrint ? RepeatScanBehavior.TriggerPrint : RepeatScanBehavior.IncrementQuantity,
             ContainerBarcodePrefix = ContainerBarcodePrefix,
             SoundsEnabled = SoundsEnabled,
+            DeviceId = _settingsService.Current.DeviceId,
+            DeviceName = string.IsNullOrWhiteSpace(DeviceName) ? Environment.MachineName : DeviceName.Trim(),
+            DeviceLetter = NormalizeLetter(DeviceLetter),
             LabelPrinter = new LabelSettings
             {
                 PrinterName = LabelPrinterName,
@@ -103,5 +131,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         await _settingsService.SaveAsync(settings);
         owner.Close();
+    }
+
+    private static string NormalizeLetter(string value)
+    {
+        var letter = value.Trim().ToUpperInvariant();
+        return letter.Length == 1 && letter[0] is >= 'A' and <= 'Z' ? letter : "A";
     }
 }

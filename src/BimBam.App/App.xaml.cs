@@ -1,11 +1,13 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.Windows;
+using BimBam.App.Services;
 using BimBam.App.ViewModels;
 using BimBam.App.Views;
 using BimBam.Core.Interfaces;
 using BimBam.Core.Services;
 using BimBam.Infrastructure.Services;
+using BimBam.Infrastructure.Sync;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BimBam.App;
@@ -32,13 +34,18 @@ public partial class App : Application
         var services = new ServiceCollection();
         services.AddSingleton<ISystemClock, SystemClock>();
         services.AddSingleton<ISettingsService, JsonSettingsService>();
-        services.AddSingleton<ISessionRepository, JsonSessionRepository>();
+        services.AddSingleton<JsonSessionRepository>();
+        services.AddSingleton<ISessionRepository>(sp => sp.GetRequiredService<JsonSessionRepository>());
+        services.AddSingleton<ISessionOperationStore>(sp => sp.GetRequiredService<JsonSessionRepository>());
         services.AddSingleton<IExcelOrderImportService, ExcelOrderImportService>();
         services.AddSingleton<ILabelPrintService, LabelPrintService>();
         services.AddSingleton<IReportService, ReportService>();
         services.AddSingleton<IScanLogger, ConsoleScanLogger>();
+        services.AddSingleton<IMainThreadDispatcher, WpfMainThreadDispatcher>();
+        services.AddSingleton<ISessionSyncService, SessionSyncService>();
+        services.AddSingleton<IFirewallSetupService, FirewallSetupService>();
+        services.AddSingleton<WorkspaceServices>();
         services.AddSingleton<MainViewModel>();
-        services.AddTransient<SettingsViewModel>();
 
         Services = services.BuildServiceProvider();
 
@@ -50,6 +57,17 @@ public partial class App : Application
 
         var window = new MainWindow { DataContext = mainViewModel };
         window.Show();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        // Close network connections cleanly so other laptops notice right away.
+        if (Services?.GetService<ISessionSyncService>() is { } sync)
+        {
+            sync.StopAsync().Wait(TimeSpan.FromSeconds(3));
+        }
+
+        base.OnExit(e);
     }
 
     /// <summary>

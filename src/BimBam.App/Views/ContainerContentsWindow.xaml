@@ -1,7 +1,7 @@
 <Window x:Class="BimBam.App.Views.ContainerContentsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Konteinerio turinys" Height="480" Width="640"
+        Title="Konteinerio turinys" Height="480" Width="860"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="12">
         <Grid.RowDefinitions>
@@ -13,11 +13,12 @@
 
         <DataGrid x:Name="ContentsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Detalė" Binding="{Binding PartNumber}" Width="180"/>
-                <DataGridTextColumn Header="Geevers nr." Binding="{Binding GeeversNumber}" Width="140"/>
-                <DataGridTextColumn Header="Tikėtasi" Binding="{Binding ExpectedQuantity}" Width="90"/>
-                <DataGridTextColumn Header="Faktiškai" Binding="{Binding ActualQuantity}" Width="90"/>
-                <DataGridTextColumn Header="Būsena" Binding="{Binding Status, Converter={StaticResource LineStatusToTextConverter}}" Width="110"/>
+                <DataGridTextColumn Header="Detalė" Binding="{Binding PartNumber}" Width="160"/>
+                <DataGridTextColumn Header="Geevers nr." Binding="{Binding GeeversNumber}" Width="120"/>
+                <DataGridTextColumn Header="Šiame konteineryje" Binding="{Binding QuantityInContainer}" Width="120"/>
+                <DataGridTextColumn Header="Faktiškai iš viso" Binding="{Binding ActualQuantity}" Width="110"/>
+                <DataGridTextColumn Header="Tikėtasi" Binding="{Binding ExpectedQuantity}" Width="70"/>
+                <DataGridTextColumn Header="Kituose konteineriuose" Binding="{Binding OtherContainers}" Width="*"/>
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

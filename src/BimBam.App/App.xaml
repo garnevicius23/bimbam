@@ -9,6 +9,7 @@
             <conv:LineStatusToBrushConverter x:Key="LineStatusToBrushConverter"/>
             <conv:ContainerCodeConverter x:Key="ContainerCodeConverter"/>
             <conv:BarcodeValueConverter x:Key="BarcodeValueConverter"/>
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -1,6 +1,7 @@
 using BimBam.Core.Enums;
 using BimBam.Core.Interfaces;
 using BimBam.Core.Models;
+using BimBam.Core.Services;
 using ClosedXML.Excel;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -22,8 +23,6 @@ public sealed class ReportService : IReportService
 
     public Task<string> ExportPdfAsync(OrderSession session, string outputPath, CancellationToken ct = default)
     {
-        var containerNames = session.Containers.ToDictionary(c => c.Id, c => c.Code);
-
         Document.Create(container =>
         {
             container.Page(page =>
@@ -44,7 +43,7 @@ public sealed class ReportService : IReportService
                         c.RelativeColumn(0.8f); // expected qty
                         c.RelativeColumn(0.8f); // actual qty
                         c.RelativeColumn(1.1f); // status
-                        c.RelativeColumn(0.9f); // container
+                        c.RelativeColumn(1.6f); // containers with quantities
                         c.RelativeColumn(0.9f); // unit price
                         c.RelativeColumn(1.0f); // expected total
                         c.RelativeColumn(1.0f); // actual total
@@ -52,7 +51,7 @@ public sealed class ReportService : IReportService
 
                     void Header(string text) => table.Cell().Background(Colors.Grey.Lighten2).Padding(3).Text(text).Bold();
                     Header("Detalė"); Header("Geevers nr."); Header("Tikėtasi"); Header("Faktiškai");
-                    Header("Būsena"); Header("Konteineris"); Header("Kaina"); Header("Suma (tikėtasi)"); Header("Suma (faktiškai)");
+                    Header("Būsena"); Header("Konteineriai"); Header("Kaina"); Header("Suma (tikėtasi)"); Header("Suma (faktiškai)");
 
                     decimal expectedSum = 0, actualSum = 0;
                     foreach (var line in session.Lines.OrderBy(l => l.PartNumber))
@@ -60,7 +59,7 @@ public sealed class ReportService : IReportService
                         var actualTotal = line.UnitPrice * line.ActualQuantity;
                         expectedSum += line.ExpectedTotal;
                         actualSum += actualTotal;
-                        var containerName = line.ContainerId is not null && containerNames.TryGetValue(line.ContainerId.Value, out var c) ? c : "-";
+                        var containerName = ContainerAllocationFormatter.Format(line, session.Containers);
 
                         table.Cell().Padding(3).Text(line.PartNumber + (line.IsMerged ? " (sujungta)" : string.Empty));
                         table.Cell().Padding(3).Text(line.GeeversNumber);
@@ -91,15 +90,13 @@ public sealed class ReportService : IReportService
 
     public Task<string> ExportExcelAsync(OrderSession session, string outputPath, CancellationToken ct = default)
     {
-        var containerNames = session.Containers.ToDictionary(c => c.Id, c => c.Code);
-
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Ataskaita");
 
         string[] headers =
         [
             "Detalė", "Geevers nr.", "Užsakymas", "Tikėtasi", "Faktiškai", "Būsena",
-            "Konteineris", "Kaina", "Suma (tikėtasi)", "Suma (faktiškai)", "Sujungta"
+            "Konteineriai (vnt.)", "Kaina", "Suma (tikėtasi)", "Suma (faktiškai)", "Sujungta"
         ];
         for (var i = 0; i < headers.Length; i++)
         {
@@ -110,7 +107,7 @@ public sealed class ReportService : IReportService
         var row = 2;
         foreach (var line in session.Lines.OrderBy(l => l.PartNumber))
         {
-            var containerName = line.ContainerId is not null && containerNames.TryGetValue(line.ContainerId.Value, out var c) ? c : string.Empty;
+            var containerName = ContainerAllocationFormatter.Format(line, session.Containers);
             sheet.Cell(row, 1).Value = line.PartNumber;
             sheet.Cell(row, 2).Value = line.GeeversNumber;
             sheet.Cell(row, 3).Value = line.OrderNumber;

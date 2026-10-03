@@ -7,9 +7,10 @@ namespace BimBam.Core.Services;
 /// <summary>
 /// Default <see cref="IScanEngine"/> implementation: interprets each scanned barcode as a part,
 /// a container, or one of the configured command barcodes, applying the repeat-scan window and
-/// behavior from <see cref="AppSettings"/>. Every scan is reported to the optional
-/// <see cref="IScanLogger"/> with what was scanned, what it was recognized as, and what actually
-/// happened.
+/// behavior from <see cref="AppSettings"/>. It never changes session state itself: every change
+/// is submitted as a <see cref="SessionOperation"/> so it can be logged and shared with other
+/// laptops. The active part and repeat-scan timer are local to this laptop.
+/// Every scan is reported to the optional <see cref="IScanLogger"/>.
 /// </summary>
 public sealed class ScanEngine : IScanEngine
 {
@@ -17,15 +18,17 @@ public sealed class ScanEngine : IScanEngine
     private readonly AppSettings _settings;
     private readonly ISystemClock _clock;
     private readonly IScanLogger? _logger;
+    private readonly ISessionOperationSink _sink;
 
     private DateTimeOffset? _activeLineLastScanAt;
 
-    public ScanEngine(OrderSession session, AppSettings settings, ISystemClock clock, IScanLogger? logger = null)
+    public ScanEngine(OrderSession session, AppSettings settings, ISystemClock clock, IScanLogger? logger = null, ISessionOperationSink? sink = null)
     {
         _session = session;
         _settings = settings;
         _clock = clock;
         _logger = logger;
+        _sink = sink ?? new InMemoryOperationSink(session);
     }
 
     public OrderLine? ActiveLine { get; private set; }
@@ -62,8 +65,7 @@ public sealed class ScanEngine : IScanEngine
             return failure;
         }
 
-        ActiveLine.ActualQuantity = quantity;
-        UpdateStatus(ActiveLine);
+        Submit(SessionOperationType.SetQuantity, ActiveLine, quantity: quantity, basedOn: ActiveLine.ActualQuantity);
         _activeLineLastScanAt = _clock.UtcNow;
 
         var result = new ScanResult { EventType = ScanEventType.QuantitySetManually, Line = ActiveLine };
@@ -132,21 +134,24 @@ public sealed class ScanEngine : IScanEngine
         }
 
         ActiveLine = line;
-        line.ActualQuantity = Math.Max(line.ActualQuantity, 1);
-        line.LastScannedAt = _clock.UtcNow;
-        _activeLineLastScanAt = _clock.UtcNow;
-        UpdateStatus(line);
 
+        // Coming back to a part whose counted pieces are all already placed means the user is
+        // holding another piece of it (typically destined for a different container), so count it.
+        var everythingPlaced = line.ActualQuantity > 0 && line.AllocatedQuantity > 0 && line.UnallocatedQuantity == 0;
+        var delta = everythingPlaced || line.ActualQuantity == 0 ? 1 : 0;
+        if (delta != 0)
+        {
+            Submit(SessionOperationType.AdjustQuantity, line, quantity: delta);
+        }
+
+        _activeLineLastScanAt = _clock.UtcNow;
         return new ScanResult { EventType = ScanEventType.PartScanned, Line = line };
     }
 
     private ScanResult IncrementQuantity(OrderLine line)
     {
-        line.ActualQuantity++;
-        line.LastScannedAt = _clock.UtcNow;
+        Submit(SessionOperationType.AdjustQuantity, line, quantity: 1);
         _activeLineLastScanAt = _clock.UtcNow;
-        UpdateStatus(line);
-
         return new ScanResult { EventType = ScanEventType.QuantityIncremented, Line = line };
     }
 
@@ -157,9 +162,8 @@ public sealed class ScanEngine : IScanEngine
             return new ScanResult { EventType = ScanEventType.UnknownBarcodeScanned, IsError = true, Message = "Nėra pasirinktos detalės spausdinimui." };
         }
 
-        ActiveLine.PrintCount++;
+        Submit(SessionOperationType.LabelPrinted, ActiveLine);
         _activeLineLastScanAt = _clock.UtcNow;
-
         return new ScanResult { EventType = ScanEventType.LabelPrinted, Line = ActiveLine };
     }
 
@@ -172,8 +176,7 @@ public sealed class ScanEngine : IScanEngine
 
         if (ActiveLine.ActualQuantity > 0)
         {
-            ActiveLine.ActualQuantity--;
-            UpdateStatus(ActiveLine);
+            Submit(SessionOperationType.AdjustQuantity, ActiveLine, quantity: -1);
         }
 
         _activeLineLastScanAt = _clock.UtcNow;
@@ -187,27 +190,54 @@ public sealed class ScanEngine : IScanEngine
             return new ScanResult { EventType = ScanEventType.UnknownBarcodeScanned, IsError = true, Message = "Pirmiausia nuskenuokite detalę." };
         }
 
-        var container = _session.Containers.FirstOrDefault(c => c.Code.Equals(containerCode, StringComparison.OrdinalIgnoreCase));
-        if (container is null)
+        var matches = _session.Containers.Where(c => c.Code.Equals(containerCode, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matches.Count == 0)
         {
             return ScanResult.UnknownBarcode(containerCode);
         }
 
-        ActiveLine.ContainerId = container.Id;
+        if (matches.Count > 1)
+        {
+            return new ScanResult
+            {
+                EventType = ScanEventType.UnknownBarcodeScanned,
+                IsError = true,
+                Line = ActiveLine,
+                Message = $"Konteinerio kodas {containerCode} sukurtas keliuose kompiuteriuose. Pervadinkite vieną iš jų."
+            };
+        }
+
+        var container = matches[0];
+        var unplaced = ActiveLine.UnallocatedQuantity;
+        if (unplaced == 0)
+        {
+            return new ScanResult
+            {
+                EventType = ScanEventType.UnknownBarcodeScanned,
+                IsError = true,
+                Line = ActiveLine,
+                Container = container,
+                Message = "Visas suskaičiuotas šios detalės kiekis jau priskirtas konteineriams. Nuskenuokite detalę dar kartą."
+            };
+        }
+
+        var outcome = Submit(SessionOperationType.AllocateToContainer, ActiveLine, quantity: unplaced, containerId: container.Id);
         _activeLineLastScanAt = _clock.UtcNow;
 
-        return new ScanResult { EventType = ScanEventType.AssignedToContainer, Line = ActiveLine, Container = container };
+        return new ScanResult { EventType = ScanEventType.AssignedToContainer, Line = ActiveLine, Container = container, Quantity = outcome.AllocatedQuantity };
     }
 
-    private static void UpdateStatus(OrderLine line)
-    {
-        line.Status = line.ActualQuantity switch
+    private OperationOutcome Submit(SessionOperationType type, OrderLine line, int? quantity = null, int? basedOn = null, Guid? containerId = null) =>
+        _sink.Submit(new SessionOperation
         {
-            var q when q == line.ExpectedQuantity => LineStatus.Matches,
-            var q when q < line.ExpectedQuantity => LineStatus.Shortage,
-            _ => LineStatus.Surplus
-        };
-    }
+            Type = type,
+            LineId = line.Id,
+            Quantity = quantity,
+            BasedOnQuantity = basedOn,
+            ContainerId = containerId,
+            CreatedAt = _clock.UtcNow
+        });
+
 
     private string DescribeTrigger(string trimmed)
     {
@@ -251,7 +281,7 @@ public sealed class ScanEngine : IScanEngine
         ScanEventType.QuantityIncremented => "kiekis padidintas (+1)",
         ScanEventType.QuantitySetManually => "kiekis nustatytas",
         ScanEventType.LabelPrinted => "spausdinama etiketė",
-        ScanEventType.AssignedToContainer => "priskirta konteineriui",
+        ScanEventType.AssignedToContainer => $"priskirta konteineriui ({result.Quantity} vnt.)",
         ScanEventType.ActionUndone => "veiksmas atšauktas / pereita prie kitos detalės",
         ScanEventType.UnknownBarcodeScanned => $"KLAIDA ({result.Message})",
         _ => result.Message ?? "-"

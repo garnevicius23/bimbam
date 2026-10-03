@@ -29,17 +29,31 @@ public sealed class JsonSettingsService : ISettingsService
 
     public async Task LoadAsync(CancellationToken ct = default)
     {
-        if (!File.Exists(_settingsFilePath))
+        if (File.Exists(_settingsFilePath))
         {
-            Directory.CreateDirectory(Current.SessionsFolderPath);
-            await SaveAsync(Current, ct);
-            return;
+            await using var stream = File.OpenRead(_settingsFilePath);
+            Current = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, ct) ?? Current;
         }
 
-        await using var stream = File.OpenRead(_settingsFilePath);
-        var loaded = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, ct);
-        Current = loaded ?? Current;
+        // First run, or settings written by a version without laptop identity.
+        var needsSave = !File.Exists(_settingsFilePath);
+        if (Current.DeviceId == Guid.Empty)
+        {
+            Current.DeviceId = Guid.NewGuid();
+            needsSave = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(Current.DeviceName))
+        {
+            Current.DeviceName = Environment.MachineName;
+            needsSave = true;
+        }
+
         Directory.CreateDirectory(Current.SessionsFolderPath);
+        if (needsSave)
+        {
+            await SaveAsync(Current, ct);
+        }
     }
 
     public async Task SaveAsync(AppSettings settings, CancellationToken ct = default)

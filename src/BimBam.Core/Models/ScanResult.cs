@@ -16,6 +16,9 @@ public sealed class ScanResult
 
     public string? Message { get; init; }
 
+    /// <summary>Pieces affected by the action, e.g. how many were placed into a container.</summary>
+    public int? Quantity { get; init; }
+
     public bool IsError { get; init; }
 
     public static ScanResult UnknownBarcode(string raw) => new()

@@ -17,6 +17,28 @@
                         CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"/>
             </Grid>
 
+            <TextBlock Text="Bendrinimas su kitais kompiuteriais" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                    <TextBlock Text="Šio kompiuterio pavadinimas (matomas kitiems)"/>
+                    <TextBox Text="{Binding DeviceName, UpdateSourceTrigger=PropertyChanged}" Padding="4"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="Konteinerių raidė"/>
+                    <TextBox Text="{Binding DeviceLetter, UpdateSourceTrigger=PropertyChanged}" Width="60" MaxLength="1" Padding="4"/>
+                </StackPanel>
+            </Grid>
+            <TextBlock Text="Tinklo nustatymas (vienkartinis, reikia administratoriaus teisių):" Margin="0,0,0,4"/>
+            <DockPanel Margin="0,0,0,16">
+                <Button DockPanel.Dock="Right" Content="Atlikti nustatymą" Padding="8,4" Margin="8,0,0,0"
+                        Command="{Binding ConfigureFirewallCommand}"/>
+                <TextBlock Text="{Binding FirewallStatus}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="Gray"/>
+            </DockPanel>
+
             <TextBlock Text="Etikečių spausdintuvas (Brother QL-800)" FontSize="15" FontWeight="Bold" Margin="0,0,0,6"/>
             <ComboBox ItemsSource="{Binding AvailablePrinters}" SelectedItem="{Binding LabelPrinterName}" Margin="0,0,0,8" Padding="4"/>
             <Grid Margin="0,0,0,16">

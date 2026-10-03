@@ -1,8 +1,9 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
-using BimBam.Core.Interfaces;
+using BimBam.Core.Enums;
 using BimBam.Core.Models;
+using BimBam.Core.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -10,34 +11,16 @@ using Microsoft.Win32;
 namespace BimBam.App.ViewModels;
 
 /// <summary>
-/// Top-level view model: the session list, creating/opening sessions, and the active workspace.
+/// Top-level view model: the session list, creating/opening sessions, joining another laptop's
+/// shared session, and the active workspace.
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject
 {
-    private readonly ISessionRepository _sessionRepository;
-    private readonly IExcelOrderImportService _excelImportService;
-    private readonly ISettingsService _settingsService;
-    private readonly ILabelPrintService _labelPrintService;
-    private readonly IReportService _reportService;
-    private readonly ISystemClock _clock;
-    private readonly IScanLogger _scanLogger;
+    private readonly WorkspaceServices _services;
 
-    public MainViewModel(
-        ISessionRepository sessionRepository,
-        IExcelOrderImportService excelImportService,
-        ISettingsService settingsService,
-        ILabelPrintService labelPrintService,
-        IReportService reportService,
-        ISystemClock clock,
-        IScanLogger scanLogger)
+    public MainViewModel(WorkspaceServices services)
     {
-        _sessionRepository = sessionRepository;
-        _excelImportService = excelImportService;
-        _settingsService = settingsService;
-        _labelPrintService = labelPrintService;
-        _reportService = reportService;
-        _clock = clock;
-        _scanLogger = scanLogger;
+        _services = services;
     }
 
     public ObservableCollection<OrderSession> Sessions { get; } = [];
@@ -53,11 +36,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task LoadSessionsAsync()
     {
+        var selectedId = SelectedSession?.Id;
         Sessions.Clear();
-        foreach (var session in await _sessionRepository.ListSessionsAsync())
+        foreach (var session in await _services.Repository.ListSessionsAsync())
         {
             Sessions.Add(session);
         }
+
+        SelectedSession = Sessions.FirstOrDefault(s => s.Id == selectedId);
     }
 
     [RelayCommand]
@@ -82,21 +68,22 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var session = await _sessionRepository.CreateSessionAsync(name);
-        var mergedTotal = new List<string>();
+        await LeaveSharedSessionAsync();
+        var session = await _services.Repository.CreateSessionAsync(name);
+        var controller = CreateController(session);
+        var merged = new List<string>();
         foreach (var file in dialog.FileNames)
         {
-            var merged = await _excelImportService.ImportAsync(session, file);
-            mergedTotal.AddRange(merged);
+            var imported = await _services.ExcelImport.ReadAsync(file);
+            merged.AddRange(controller.Submit(new SessionOperation { Type = SessionOperationType.ImportFile, ImportFile = imported }).MergedPartNumbers);
         }
 
-        await _sessionRepository.SaveSessionAsync(session);
-        Sessions.Insert(0, session);
-        SelectedSession = session;
-        OpenWorkspace(session);
+        await LoadSessionsAsync();
+        SelectedSession = Sessions.FirstOrDefault(s => s.Id == session.Id);
+        OpenWorkspace(controller);
 
-        StatusMessage = mergedTotal.Count > 0
-            ? $"Sesija sukurta. Sujungtos detalės (rastos keliuose failuose): {string.Join(", ", mergedTotal.Distinct())}"
+        StatusMessage = merged.Count > 0
+            ? $"Sesija sukurta. Sujungtos detalės (rastos keliuose failuose): {string.Join(", ", merged.Distinct())}"
             : "Sesija sukurta.";
     }
 
@@ -108,20 +95,63 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var full = await _sessionRepository.LoadSessionAsync(SelectedSession.Id);
-        OpenWorkspace(full);
+        await LeaveSharedSessionAsync();
+        var session = await _services.Repository.LoadSessionAsync(SelectedSession.Id);
+        OpenWorkspace(CreateController(session));
+    }
+
+    [RelayCommand]
+    private async Task JoinSharedSessionAsync(Window owner)
+    {
+        var vm = new JoinSessionViewModel(_services.Sync, OpenLocalCopyAsync);
+        var window = new Views.JoinSessionWindow { DataContext = vm, Owner = owner };
+        if (window.ShowDialog() != true || vm.JoinedController is not { } controller)
+        {
+            return;
+        }
+
+        await LoadSessionsAsync();
+        SelectedSession = Sessions.FirstOrDefault(s => s.Id == controller.Session.Id);
+        OpenWorkspace(controller);
+        StatusMessage = $"Prisijungta prie sesijos „{controller.Session.Name}“.";
     }
 
     [RelayCommand]
     private void OpenSettings(Window owner)
     {
-        var vm = new SettingsViewModel(_settingsService);
+        var vm = new SettingsViewModel(_services.Settings, _services.Firewall);
         var window = new Views.SettingsWindow { DataContext = vm, Owner = owner };
         window.ShowDialog();
     }
 
-    private void OpenWorkspace(OrderSession session)
+    /// <summary>Finds this laptop's copy of a shared session, or creates an empty one to fill from the host.</summary>
+    private async Task<SessionController> OpenLocalCopyAsync(RemoteSessionInfo info)
     {
-        Workspace = new SessionWorkspaceViewModel(session, _settingsService, _sessionRepository, _excelImportService, _labelPrintService, _reportService, _clock, _scanLogger);
+        if (Workspace?.Controller is { } current && current.Session.Id == info.SessionId)
+        {
+            return current;
+        }
+
+        var session = await _services.Repository.FindSessionAsync(info.SessionId)
+            ?? await _services.Repository.CreateSessionAsync(info.SessionName, info.SessionId);
+        return CreateController(session);
+    }
+
+    private SessionController CreateController(OrderSession session) =>
+        new(session, _services.Settings.Current.ToDeviceIdentity(), _services.OperationStore);
+
+    /// <summary>Switching to another session ends any sharing of the current one.</summary>
+    private async Task LeaveSharedSessionAsync()
+    {
+        if (_services.Sync.State.Mode != SyncMode.Local)
+        {
+            await _services.Sync.StopAsync();
+        }
+    }
+
+    private void OpenWorkspace(SessionController controller)
+    {
+        Workspace?.Dispose();
+        Workspace = new SessionWorkspaceViewModel(controller, _services);
     }
 }

@@ -21,6 +21,9 @@
                         CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"/>
                 <Button Content="Atverti sesiją" Height="34" Margin="0,0,0,6"
                         Command="{Binding OpenSessionCommand}"/>
+                <Button Content="Prisijungti prie kito kompiuterio" Height="34" Margin="0,0,0,6"
+                        Command="{Binding JoinSharedSessionCommand}"
+                        CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"/>
                 <Button Content="Nustatymai" Height="34"
                         Command="{Binding OpenSettingsCommand}"
                         CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"/>
@@ -44,10 +47,11 @@
         <Grid Grid.Column="1" Margin="12" DataContext="{Binding Workspace}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.RowSpan="2" Text="Pasirinkite arba sukurkite sesiją kairėje." FontSize="16" Foreground="Gray"
+            <TextBlock Grid.RowSpan="3" Text="Pasirinkite arba sukurkite sesiją kairėje." FontSize="16" Foreground="Gray"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Visibility="{Binding Session, Converter={x:Static conv:NullToVisibilityConverter.Instance}}"/>
 
@@ -59,7 +63,41 @@
                 <TextBlock Text="{Binding Session.Name}" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
             </DockPanel>
 
-            <TabControl Grid.Row="1" Visibility="{Binding Session, Converter={x:Static conv:NullToInverseVisibilityConverter.Instance}}">
+            <!-- Sharing status: green while hosting/connected, red banner while the host is unreachable. -->
+            <Border Grid.Row="1" Padding="10,6" CornerRadius="4" Margin="0,0,0,8"
+                    Visibility="{Binding Session, Converter={x:Static conv:NullToInverseVisibilityConverter.Instance}}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#F3F3F3"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsShared}" Value="True">
+                                <Setter Property="Background" Value="#E3F2E1"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsOffline}" Value="True">
+                                <Setter Property="Background" Value="#F8D7DA"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Content="{Binding StartHostingLabel}" Padding="10,3" Margin="6,0,0,0"
+                                Command="{Binding StartHostingCommand}"
+                                CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"
+                                Visibility="{Binding CanStartHosting, Converter={StaticResource BoolToVisibility}}"/>
+                        <Button Content="Baigti bendrinti / atsijungti" Padding="10,3" Margin="6,0,0,0"
+                                Command="{Binding StopSharingCommand}"
+                                Visibility="{Binding IsShared, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SyncStatusText}" FontWeight="Bold" FontSize="14"/>
+                        <TextBlock Text="{Binding SyncWarning}" TextWrapping="Wrap"
+                                   Visibility="{Binding SyncWarning, Converter={x:Static conv:NullToInverseVisibilityConverter.Instance}}"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <TabControl Grid.Row="2" Visibility="{Binding Session, Converter={x:Static conv:NullToInverseVisibilityConverter.Instance}}">
                 <TabItem Header="Tikrinimas">
                     <Grid Margin="8">
                         <Grid.RowDefinitions>
@@ -127,14 +165,16 @@
                                 <DataGridTextColumn Header="Tikėtasi" Binding="{Binding ExpectedQuantity}" Width="70"/>
                                 <DataGridTextColumn Header="Faktiškai" Binding="{Binding ActualQuantity}" Width="70"/>
                                 <DataGridTextColumn Header="Būsena" Binding="{Binding Status, Converter={StaticResource LineStatusToTextConverter}}" Width="90"/>
-                                <DataGridTemplateColumn Header="Konteineris" Width="100">
+                                <DataGridTemplateColumn Header="Konteineriai (vnt.)" Width="200">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <TextBlock>
+                                            <TextBlock TextWrapping="Wrap">
                                                 <TextBlock.Text>
                                                     <MultiBinding Converter="{StaticResource ContainerCodeConverter}">
-                                                        <Binding Path="ContainerId"/>
+                                                        <Binding Path="."/>
                                                         <Binding Path="DataContext.Containers" RelativeSource="{RelativeSource AncestorType=DataGrid}"/>
+                                                        <Binding Path="Allocations"/>
+                                                        <Binding Path="ActualQuantity"/>
                                                     </MultiBinding>
                                                 </TextBlock.Text>
                                             </TextBlock>
@@ -144,6 +184,17 @@
                                 <DataGridTextColumn Header="Kaina" Binding="{Binding UnitPrice, StringFormat=N2}" Width="70"/>
                                 <DataGridTextColumn Header="Suma (tikėtasi)" Binding="{Binding ExpectedTotal, StringFormat=N2}" Width="110"/>
                                 <DataGridTextColumn Header="Sujungta" Binding="{Binding IsMerged}" Width="70"/>
+                                <DataGridTemplateColumn Header="Peržiūrėti" Width="130">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="⚠ Patikrinta" Padding="4,0" Foreground="DarkRed" FontWeight="Bold"
+                                                    ToolTip="Šią eilutę tuo pačiu metu keitė keli kompiuteriai. Patikrinkite kiekį ir paspauskite."
+                                                    Visibility="{Binding NeedsReview, Converter={StaticResource BoolToVisibility}}"
+                                                    Command="{Binding DataContext.ClearReviewCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>

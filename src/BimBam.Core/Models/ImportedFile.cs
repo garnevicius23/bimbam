@@ -17,4 +17,14 @@ public sealed class ImportedFile
     public DateTimeOffset ImportedAt { get; set; } = DateTimeOffset.Now;
 
     public int LineCount { get; set; }
+
+    public ImportedFile Clone() => new()
+    {
+        Id = Id,
+        SessionId = SessionId,
+        OrderNumber = OrderNumber,
+        FileName = FileName,
+        ImportedAt = ImportedAt,
+        LineCount = LineCount
+    };
 }
